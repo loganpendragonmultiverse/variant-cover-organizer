@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "variant-cover-organizer"
-version = "1.0.0"
+version = "1.1.0"
 description = "Plan and optionally copy explicitly identified comic cover variants into reviewable issue groups."
 readme = "README.md"
 requires-python = ">=3.10"

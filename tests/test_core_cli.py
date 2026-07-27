@@ -38,6 +38,10 @@ def test_plan_and_export(tmp_path: Path) -> None:
     destination = tmp_path / "organized"
     export_copies(plan, destination)
     assert (destination / "north-1" / "A.jpg").read_bytes() == b"cover-a"
+    manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["variant_count"] == 2
+    assert manifest["copies"][0]["destination"] == "north-1/A.jpg"
+    assert manifest["copies"][0]["sha256"] == plan["items"][0]["sha256"]
     with pytest.raises(ValueError, match="already exists"):
         export_copies(plan, destination)
     with pytest.raises(ValueError, match="inside"):
@@ -89,3 +93,13 @@ def test_cli_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     output = tmp_path / "plan.json"
     assert main([str(inventory), "--source", str(source), "--output", str(output)]) == 0
     assert main([str(inventory), "--source", str(source), "--output", str(output)]) == 2
+
+
+def test_reports_byte_identical_variants(tmp_path: Path) -> None:
+    source, inventory = setup(tmp_path)
+    (source / "b.jpg").write_bytes((source / "a.jpg").read_bytes())
+    plan = build_plan(inventory, source)
+    assert len(plan["duplicate_content"]) == 1
+    duplicate = plan["duplicate_content"][0]
+    assert len(duplicate["files"]) == 2
+    assert duplicate["sha256"] == plan["items"][0]["sha256"]
