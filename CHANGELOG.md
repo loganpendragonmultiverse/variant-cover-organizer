@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0 - 2026-07-27
+
+- Added byte-identical cover reporting using the existing SHA-256 planning fingerprints.
+- Added an export manifest mapping each source and destination to its verified fingerprint.
+
 ## 1.0.0 - 2026-07-26
 
 - Added CSV-based issue and variant grouping plans.

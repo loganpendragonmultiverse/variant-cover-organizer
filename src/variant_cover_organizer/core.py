@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -70,7 +71,23 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
     targets = [str(item["target"]).casefold() for item in items]
     if len(targets) != len(set(targets)):
         raise ValueError("two variants resolve to the same destination")
-    return {"version": 1, "source": str(source), "variant_count": len(items), "items": items}
+    fingerprints: dict[str, list[dict[str, str]]] = {}
+    for item in items:
+        fingerprints.setdefault(str(item["sha256"]), []).append(
+            {"source": str(item["source"]), "target": str(item["target"])}
+        )
+    duplicate_content = [
+        {"sha256": fingerprint, "files": files}
+        for fingerprint, files in fingerprints.items()
+        if len(files) > 1
+    ]
+    return {
+        "version": 1,
+        "source": str(source),
+        "variant_count": len(items),
+        "duplicate_content": duplicate_content,
+        "items": items,
+    }
 
 
 def export_copies(plan: dict[str, Any], destination: Path) -> None:
@@ -83,6 +100,7 @@ def export_copies(plan: dict[str, Any], destination: Path) -> None:
     temporary = destination.with_name(f".{destination.name}.tmp")
     if temporary.exists():
         raise ValueError("temporary export path already exists")
+    manifest = []
     try:
         for item in plan["items"]:
             source_file = source / item["source"]
@@ -91,6 +109,26 @@ def export_copies(plan: dict[str, Any], destination: Path) -> None:
             target = temporary / item["target"]
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_file, target)
+            manifest.append(
+                {
+                    "source": item["source"],
+                    "destination": item["target"],
+                    "sha256": item["sha256"],
+                }
+            )
+        (temporary / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "source": plan["source"],
+                    "variant_count": plan["variant_count"],
+                    "copies": manifest,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         os.replace(temporary, destination)
     except Exception:
         if temporary.exists():
