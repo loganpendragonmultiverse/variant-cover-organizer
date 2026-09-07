@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import json
-import os
 import re
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +38,9 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
         relative = Path(row["file"])
         if relative.is_absolute() or ".." in relative.parts:
             raise ValueError(f"file must be a safe relative path: {row['file']}")
-        source_file = (source / relative).resolve()
+        from .review import safe_path
+
+        source_file = safe_path(source, row["file"]).resolve()
         if (
             source not in source_file.parents
             or not source_file.is_file()
@@ -90,47 +89,7 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
     }
 
 
-def export_copies(plan: dict[str, Any], destination: Path) -> None:
-    source = Path(plan["source"])
-    destination = destination.resolve()
-    if destination.exists():
-        raise ValueError("copy destination already exists")
-    if source == destination or source in destination.parents:
-        raise ValueError("copy destination cannot be inside the source")
-    temporary = destination.with_name(f".{destination.name}.tmp")
-    if temporary.exists():
-        raise ValueError("temporary export path already exists")
-    manifest = []
-    try:
-        for item in plan["items"]:
-            source_file = source / item["source"]
-            if hashlib.sha256(source_file.read_bytes()).hexdigest() != item["sha256"]:
-                raise ValueError(f"source changed after planning: {item['source']}")
-            target = temporary / item["target"]
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_file, target)
-            manifest.append(
-                {
-                    "source": item["source"],
-                    "destination": item["target"],
-                    "sha256": item["sha256"],
-                }
-            )
-        (temporary / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "source": plan["source"],
-                    "variant_count": plan["variant_count"],
-                    "copies": manifest,
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, destination)
-    except Exception:
-        if temporary.exists():
-            shutil.rmtree(temporary)
-        raise
+def export_copies(plan: dict[str, Any], destination: Path, *, resume: bool = False) -> None:
+    from .review import export_resumable
+
+    export_resumable(plan, destination, resume=resume)
