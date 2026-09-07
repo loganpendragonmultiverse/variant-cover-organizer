@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 - 2026-09-07
+
+- Add per-issue thumbnail selection, hash-verified export inspection and resumable copy staging with collision protection.
+- Added regression coverage for the audited behavior and invalid inputs.
+
 ## 1.1.0 - 2026-07-27
 
 - Added byte-identical cover reporting using the existing SHA-256 planning fingerprints.
