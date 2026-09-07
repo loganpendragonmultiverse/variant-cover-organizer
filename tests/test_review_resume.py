@@ -66,7 +66,7 @@ def test_contact_sheet_selection_and_cli(tmp_path):
 
 
 def test_interrupt_mid_copy_then_resume_and_verify(monkeypatch, tmp_path):
-    source, inventory, plan = fixture(tmp_path)
+    source, _inventory, plan = fixture(tmp_path)
     hashes = {p.name: review.digest(p) for p in source.iterdir()}
     output = tmp_path / "export"
     real = review.shutil.copyfileobj
@@ -99,7 +99,7 @@ def test_interrupt_mid_copy_then_resume_and_verify(monkeypatch, tmp_path):
 
 
 def test_resume_mismatch_collision_and_path_guards(tmp_path):
-    source, inventory, plan = fixture(tmp_path)
+    source, _inventory, plan = fixture(tmp_path)
     with pytest.raises(ValueError, match="matching"):
         export_copies(plan, tmp_path / "new", resume=True)
     duplicated = {**plan, "items": [plan["items"][0], plan["items"][0]]}
@@ -121,7 +121,7 @@ def test_resume_mismatch_collision_and_path_guards(tmp_path):
 
 
 def test_manifest_validation_and_preview_failure(tmp_path):
-    source, inventory, plan = fixture(tmp_path)
+    source, _inventory, plan = fixture(tmp_path)
     output = tmp_path / "export"
     export_copies(plan, output)
     path = output / "manifest.json"
