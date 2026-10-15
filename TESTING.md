@@ -11,3 +11,5 @@ Run the complete existing suite plus the new regression fixtures. Confirm the do
 Run `ruff format --check .`, `ruff check .`, `mypy src`, `pytest`, and `python -m build` after installing `.[dev]` in an isolated environment. The focused regressions are in `tests/test_feature_wave.py`; run them together with the existing suite. Keep the configured coverage threshold. Repository CI supplies the supported OS/Python matrix.
 
 Review-hold regressions cover new reserved issue IDs/direct plans, the tool's own valid exports, and legacy .copying/ manifests with listed copies plus unexpected files. Existing unsafe-path and symlink regressions remain required.
+
+Direct-plan regressions include Windows backslash and trailing-dot/space aliases and assert that neither destination nor staging is created.

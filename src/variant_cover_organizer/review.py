@@ -13,6 +13,24 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 
+def canonical_target(name: str) -> PurePosixPath:
+    """Require a portable target spelling before native filesystem operations."""
+    relative = PurePosixPath(name)
+    if (
+        not name
+        or not relative.parts
+        or relative.is_absolute()
+        or ".." in relative.parts
+        or "\\" in name
+        or ":" in name
+        or "\x00" in name
+        or name != relative.as_posix()
+        or any(part.endswith((".", " ")) for part in relative.parts)
+    ):
+        raise ValueError("unsafe or noncanonical manifest path")
+    return relative
+
+
 def safe_path(root: Path, relative: str) -> Path:
     rel = Path(relative)
     if rel.is_absolute() or ".." in rel.parts or not rel.parts:
@@ -46,7 +64,7 @@ def export_resumable(plan: dict[str, Any], destination: Path, *, resume: bool = 
     if len(set(targets)) != len(targets):
         raise ValueError("case or Unicode destination collision")
     for item in plan["items"]:
-        first = PurePosixPath(item["target"]).parts[0].casefold()
+        first = canonical_target(item["target"]).parts[0].casefold()
         if first in {".copying", "manifest.json", "plan.json"}:
             raise ValueError("copy target uses a reserved export bookkeeping name")
         if digest(safe_path(source, item["source"])) != item["sha256"]:
@@ -127,16 +145,7 @@ def verify_export(destination: Path, *, strict: bool = False) -> dict[str, Any]:
         if not re.fullmatch(r"[0-9a-fA-F]{64}", item["sha256"]):
             raise ValueError("invalid SHA-256 in manifest")
         name = item["destination"]
-        relative = PurePosixPath(name)
-        if (
-            not name
-            or relative.is_absolute()
-            or ".." in relative.parts
-            or "\\" in name
-            or ":" in name
-            or name != relative.as_posix()
-        ):
-            raise ValueError("unsafe manifest path")
+        canonical_target(name)
         if name.casefold() in {"manifest.json", "plan.json"}:
             raise ValueError("copy destination conflicts with export metadata")
         expected.add(name)

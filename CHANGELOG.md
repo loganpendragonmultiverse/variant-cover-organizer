@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.2.1 - Unreleased
+## 1.2.1
+
+- Apply shared portable target validation before staging, including Windows backslash and trailing-dot/space aliases.
 
 - Reserve staging/metadata names for new export plans while retaining safe verification of legacy .copying/ manifest copies.
 

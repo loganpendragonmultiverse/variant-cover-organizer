@@ -71,3 +71,35 @@ def test_direct_export_rejects_reserved_plan_before_staging(tmp_path):
         export_copies(plan, output)
     assert not output.exists()
     assert not (tmp_path / ".output.partial").exists()
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        ".copying\\A.png",
+        "Issue\\A.png",
+        "./Issue/A.png",
+        "Issue//A.png",
+        "Issue/../A.png",
+        "/absolute/A.png",
+        "C:\\outside\\A.png",
+        ".copying./A.png",
+        ".copying /A.png",
+        "",
+    ],
+)
+def test_noncanonical_direct_plan_targets_fail_before_staging(tmp_path, target):
+    source, path = inventory(tmp_path, "Issue")
+    plan = build_plan(path, source)
+    plan["items"][0]["target"] = target
+    output = tmp_path / "output"
+    with pytest.raises(ValueError, match="unsafe|noncanonical"):
+        export_copies(plan, output)
+    assert not output.exists()
+    assert not (tmp_path / ".output.partial").exists()
+
+
+def test_new_inventory_targets_use_the_same_portable_validation(tmp_path):
+    source, path = inventory(tmp_path, "Issue.")
+    with pytest.raises(ValueError, match="unsafe|noncanonical"):
+        build_plan(path, source)

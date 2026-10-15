@@ -58,6 +58,9 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
         source_files.add(source_file)
         extension = source_file.suffix.casefold()
         target = f"{issue_id}/{variant}{extension}"
+        from .review import canonical_target
+
+        canonical_target(target)
         items.append(
             {
                 "issue_id": issue_id,
