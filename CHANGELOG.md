@@ -2,6 +2,8 @@
 
 ## 1.2.1 - Unreleased
 
+- Reserve staging/metadata names for new export plans while retaining safe verification of legacy .copying/ manifest copies.
+
 - Add optional strict read-only export inspection and reject unsafe manifest paths.
 
 ## 1.2.0 - 2026-09-07

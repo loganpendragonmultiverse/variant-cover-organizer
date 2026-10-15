@@ -33,6 +33,8 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
     items = []
     for row in rows:
         issue_id = _safe_part(row["issue_id"], "issue_id")
+        if issue_id.casefold() in {".copying", "manifest.json", "plan.json"}:
+            raise ValueError("issue_id is reserved for export bookkeeping")
         issue_label = _safe_part(row["issue_label"], "issue_label")
         variant = _safe_part(row["variant"], "variant")
         relative = Path(row["file"])

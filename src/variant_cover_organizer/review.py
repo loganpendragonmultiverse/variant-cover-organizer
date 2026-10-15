@@ -46,6 +46,9 @@ def export_resumable(plan: dict[str, Any], destination: Path, *, resume: bool = 
     if len(set(targets)) != len(targets):
         raise ValueError("case or Unicode destination collision")
     for item in plan["items"]:
+        first = PurePosixPath(item["target"]).parts[0].casefold()
+        if first in {".copying", "manifest.json", "plan.json"}:
+            raise ValueError("copy target uses a reserved export bookkeeping name")
         if digest(safe_path(source, item["source"])) != item["sha256"]:
             raise ValueError("source changed after planning")
     stage = destination.with_name("." + destination.name + ".partial")
@@ -134,9 +137,7 @@ def verify_export(destination: Path, *, strict: bool = False) -> dict[str, Any]:
             or name != relative.as_posix()
         ):
             raise ValueError("unsafe manifest path")
-        if name.casefold() in {"manifest.json", "plan.json"} or name.casefold().startswith(
-            ".copying/"
-        ):
+        if name.casefold() in {"manifest.json", "plan.json"}:
             raise ValueError("copy destination conflicts with export metadata")
         expected.add(name)
         normalized = unicodedata.normalize("NFC", name).casefold()

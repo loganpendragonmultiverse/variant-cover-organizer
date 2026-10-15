@@ -14,3 +14,6 @@ Local formatting, lint, strict types and regression tests pass. Public release c
 ## 1.2.1 candidate
 
 Use `variant-cover-organizer --verify-export organized-covers --strict` for read-only inspection of listed hashes plus unexpected files and symlinks. The default verification mode retains listed-copy verification. Strict mode adds `unexpected_paths` and fails verification when extras exist. The existing export metadata files `manifest.json` and `plan.json` are allowed; empty directories (including staging bookkeeping) are ignored. Manifest destinations must be safe relative paths, distinct under NFC/case folding, and use valid SHA-256 values. Root, manifest and listed-path symlinks are rejected. Legacy version 1 copy manifests remain supported. Inspection never removes extras, repairs copies, resumes exports, or authenticates the manifest.
+
+
+New inventories and direct export plans reserve .copying, manifest.json and plan.json as top-level bookkeeping names (case-insensitive), before staging starts. Existing version 1 manifests may list copies under .copying/ from older exports: verification accepts those exact listed files with the same hash, duplicate-path, traversal and symlink checks as other copies. Strict mode still reports every unlisted file there.
