@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 - Unreleased
+
+- Add optional strict read-only export inspection and reject unsafe manifest paths.
+
 ## 1.2.0 - 2026-09-07
 
 - Add per-issue thumbnail selection, hash-verified export inspection and resumable copy staging with collision protection.

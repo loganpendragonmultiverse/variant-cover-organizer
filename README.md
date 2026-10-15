@@ -27,3 +27,8 @@ variant-cover-organizer variants.csv --source ./covers --format html --output re
 ```
 
 HTML contact sheets show up to 200 local thumbnails with per-cover selection; --reviewed-plan accepts only unchanged items from the current CSV-derived plan. --copy-to creates a new destination through a matching .DEST.partial plan; --resume retains verified completed copies and restarts incomplete staging copies after rechecking original source hashes. Final file publication uses exclusive hard links and requires filesystem hard-link support. Modified completed copies and case/Unicode collisions are rejected without overwrite. --verify-export DIRECTORY checks listed manifest hashes and reports verified/missing/modified; it does not authenticate the manifest or claim there are no extra files. Original covers remain unchanged. Pillow generates thumbnails, with oversized images rejected and unsupported previews explicitly unavailable.
+
+
+## 1.2.1 candidate
+
+Use `variant-cover-organizer --verify-export organized-covers --strict` for read-only inspection of listed hashes plus unexpected files and symlinks. The default verification mode retains listed-copy verification. Strict mode adds `unexpected_paths` and fails verification when extras exist. The existing export metadata files `manifest.json` and `plan.json` are allowed; empty directories (including staging bookkeeping) are ignored. Manifest destinations must be safe relative paths, distinct under NFC/case folding, and use valid SHA-256 values. Root, manifest and listed-path symlinks are rejected. Legacy version 1 copy manifests remain supported. Inspection never removes extras, repairs copies, resumes exports, or authenticates the manifest.

@@ -5,10 +5,11 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import unicodedata
 from html import escape
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -99,8 +100,11 @@ def export_resumable(plan: dict[str, Any], destination: Path, *, resume: bool = 
     os.rename(stage, destination)
 
 
-def verify_export(destination: Path) -> dict[str, Any]:
-    manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
+def verify_export(destination: Path, *, strict: bool = False) -> dict[str, Any]:
+    if destination.is_symlink() or not destination.is_dir():
+        raise ValueError("export root must be a real directory")
+    manifest_path = safe_path(destination, "manifest.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (
         not isinstance(manifest, dict)
         or manifest.get("version") != 1
@@ -109,6 +113,7 @@ def verify_export(destination: Path) -> dict[str, Any]:
         raise ValueError("invalid version 1 export manifest")
     results = []
     seen = set()
+    expected = {"manifest.json", "plan.json"}
     for item in manifest["copies"]:
         if (
             not isinstance(item, dict)
@@ -116,7 +121,24 @@ def verify_export(destination: Path) -> dict[str, Any]:
             or not isinstance(item.get("sha256"), str)
         ):
             raise TypeError("invalid copy manifest item")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", item["sha256"]):
+            raise ValueError("invalid SHA-256 in manifest")
         name = item["destination"]
+        relative = PurePosixPath(name)
+        if (
+            not name
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or "\\" in name
+            or ":" in name
+            or name != relative.as_posix()
+        ):
+            raise ValueError("unsafe manifest path")
+        if name.casefold() in {"manifest.json", "plan.json"} or name.casefold().startswith(
+            ".copying/"
+        ):
+            raise ValueError("copy destination conflicts with export metadata")
+        expected.add(name)
         normalized = unicodedata.normalize("NFC", name).casefold()
         if normalized in seen:
             raise ValueError("duplicate manifest destination")
@@ -126,15 +148,32 @@ def verify_export(destination: Path) -> dict[str, Any]:
             "missing"
             if not path.is_file()
             else "verified"
-            if digest(path) == item["sha256"]
+            if digest(path) == item["sha256"].lower()
             else "modified"
         )
         results.append({"destination": name, "status": status})
+    unexpected = []
+    if strict:
+
+        def walk_error(error: OSError) -> None:
+            raise error
+
+        for directory, folders, files in os.walk(
+            destination, followlinks=False, onerror=walk_error
+        ):
+            for entry in sorted(folders + files):
+                path = Path(directory) / entry
+                name = path.relative_to(destination).as_posix()
+                if path.is_symlink() or (not path.is_dir() and name not in expected):
+                    unexpected.append(name)
+        unexpected.sort()
     return {
         "version": 1,
-        "verified": all(item["status"] == "verified" for item in results),
+        "strict": strict,
+        "unexpected_paths": unexpected,
+        "verified": all(item["status"] == "verified" for item in results) and not unexpected,
         "copies": results,
-        "note": "Verifies listed copies against the local manifest, not manifest authenticity or extra files",
+        "note": "Checks local manifest hashes; strict mode also reports unexpected files and symlinks. Does not authenticate the manifest.",
     }
 
 
