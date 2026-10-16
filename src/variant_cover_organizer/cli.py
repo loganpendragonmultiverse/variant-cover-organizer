@@ -19,15 +19,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--format", choices=("json", "html"), default="json")
     parser.add_argument("--reviewed-plan", type=Path)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--strict", action="store_true", help="Also inspect export for unexpected files"
+    )
     parser.add_argument("--verify-export", type=Path)
     args = parser.parse_args(argv)
     try:
+        if args.strict and not args.verify_export:
+            raise ValueError("--strict requires --verify-export")
         if args.output and args.output.exists():
             raise ValueError("output already exists")
         if args.verify_export:
             if args.copy_to or args.resume or args.reviewed_plan or args.format != "json":
                 raise ValueError("verification is read-only and emits JSON")
-            report = verify_export(args.verify_export)
+            report = verify_export(args.verify_export, strict=args.strict)
             rendered = json.dumps(report, indent=2) + "\n"
         else:
             if not args.input or not args.source:

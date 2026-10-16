@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 - 2026-10-16
+
+- Apply shared portable target validation before staging, including Windows backslash and trailing-dot/space aliases.
+
+- Reserve staging/metadata names for new export plans while retaining safe verification of legacy .copying/ manifest copies.
+
+- Add optional strict read-only export inspection and reject unsafe manifest paths.
+
 ## 1.2.0 - 2026-09-07
 
 - Add per-issue thumbnail selection, hash-verified export inspection and resumable copy staging with collision protection.
