@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.1
+## 1.2.1 - 2026-10-16
 
 - Apply shared portable target validation before staging, including Windows backslash and trailing-dot/space aliases.
 
