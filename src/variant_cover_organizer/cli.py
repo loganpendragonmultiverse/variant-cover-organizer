@@ -54,7 +54,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.output:
             if args.output.exists():
                 raise ValueError(f"output already exists: {args.output}")
-            args.output.write_text(rendered, encoding="utf-8")
+            with args.output.open("x", encoding="utf-8") as handle:
+                handle.write(rendered)
         else:
             sys.stdout.write(rendered)
     except (OSError, TypeError, ValueError, csv.Error, json.JSONDecodeError) as exc:

@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import unicodedata
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -26,6 +27,19 @@ def canonical_target(name: str) -> PurePosixPath:
         or "\x00" in name
         or name != relative.as_posix()
         or any(part.endswith((".", " ")) for part in relative.parts)
+        or any(ord(char) < 32 or char in '<>"|?*' for char in name)
+        or any(
+            part.split(".", 1)[0].casefold()
+            in {
+                "con",
+                "prn",
+                "aux",
+                "nul",
+                *(f"com{x}" for x in "123456789¹²³"),
+                *(f"lpt{x}" for x in "123456789¹²³"),
+            }
+            for part in relative.parts
+        )
     ):
         raise ValueError("unsafe or noncanonical manifest path")
     return relative
@@ -45,7 +59,18 @@ def safe_path(root: Path, relative: str) -> Path:
     return current
 
 
+def require_regular(path: Path) -> None:
+    if not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError("expected a non-symlink regular file")
+
+
+def read_json(path: Path) -> Any:
+    require_regular(path)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def digest(path: Path) -> str:
+    require_regular(path)
     with path.open("rb") as handle:
         result = hashlib.sha256()
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -73,11 +98,21 @@ def export_resumable(plan: dict[str, Any], destination: Path, *, resume: bool = 
     if stage.is_symlink():
         raise ValueError("unsafe staging symlink")
     if resume:
-        if (
-            not stage.is_dir()
-            or json.loads((stage / "plan.json").read_text(encoding="utf-8")) != plan
-        ):
+        if not stage.is_dir() or read_json(safe_path(stage, "plan.json")) != plan:
             raise ValueError("resume requires the original matching staging plan")
+        allowed = {"plan.json", "manifest.json"}
+        for item in plan["items"]:
+            allowed.add(item["target"])
+            allowed.add(".copying/" + hashlib.sha256(item["target"].encode()).hexdigest() + ".part")
+        for directory, folders, files in os.walk(stage, followlinks=False, onerror=walk_error):
+            for entry in folders + files:
+                path = Path(directory) / entry
+                if path.is_symlink():
+                    raise ValueError("symlinks are not allowed in staging")
+                if not path.is_dir():
+                    require_regular(path)
+                if not path.is_dir() and path.relative_to(stage).as_posix() not in allowed:
+                    raise ValueError("unexpected file in staging; inspect without deleting it")
     else:
         stage.mkdir(parents=True, exist_ok=False)
         with (stage / "plan.json").open("x", encoding="utf-8") as handle:
@@ -86,20 +121,26 @@ def export_resumable(plan: dict[str, Any], destination: Path, *, resume: bool = 
     for item in plan["items"]:
         target = safe_path(stage, item["target"])
         source_file = safe_path(source, item["source"])
+        copying = safe_path(
+            stage, ".copying/" + hashlib.sha256(item["target"].encode()).hexdigest() + ".part"
+        )
         if target.exists():
             if digest(target) != item["sha256"]:
                 raise ValueError("existing staged file hash differs; inspect without overwriting")
+            if copying.exists():
+                if digest(copying) != item["sha256"]:
+                    raise ValueError(
+                        "incomplete staged file hash differs; inspect without overwriting"
+                    )
+                copying.unlink()
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
-            copying = safe_path(
-                stage, ".copying/" + hashlib.sha256(item["target"].encode()).hexdigest() + ".part"
-            )
             copying.parent.mkdir(exist_ok=True)
-            # A matching plan owns this incomplete staging copy. Resume restarts only it.
-            with (
-                source_file.open("rb") as incoming,
-                copying.open("wb" if resume else "xb") as outgoing,
-            ):
+            # Restart only this plan-owned partial, using a new inode so a hard link
+            # cannot truncate a source file or another file outside staging.
+            if resume and copying.exists():
+                copying.unlink()
+            with source_file.open("rb") as incoming, copying.open("xb") as outgoing:
                 shutil.copyfileobj(incoming, outgoing)
             if digest(copying) != item["sha256"] or digest(source_file) != item["sha256"]:
                 raise ValueError("source or copy changed during export")
@@ -109,9 +150,9 @@ def export_resumable(plan: dict[str, Any], destination: Path, *, resume: bool = 
             {"source": item["source"], "destination": item["target"], "sha256": item["sha256"]}
         )
     manifest = {"version": 1, "source": str(source), "variant_count": len(copies), "copies": copies}
-    manifest_path = stage / "manifest.json"
+    manifest_path = safe_path(stage, "manifest.json")
     if manifest_path.exists():
-        if json.loads(manifest_path.read_text(encoding="utf-8")) != manifest:
+        if read_json(manifest_path) != manifest:
             raise ValueError("staged manifest differs")
     else:
         with manifest_path.open("x", encoding="utf-8") as handle:
@@ -125,13 +166,19 @@ def verify_export(destination: Path, *, strict: bool = False) -> dict[str, Any]:
     if destination.is_symlink() or not destination.is_dir():
         raise ValueError("export root must be a real directory")
     manifest_path = safe_path(destination, "manifest.json")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = read_json(manifest_path)
     if (
         not isinstance(manifest, dict)
+        or type(manifest.get("version")) is not int
         or manifest.get("version") != 1
         or not isinstance(manifest.get("copies"), list)
     ):
         raise ValueError("invalid version 1 export manifest")
+    if "variant_count" in manifest and (
+        type(manifest["variant_count"]) is not int
+        or manifest["variant_count"] != len(manifest["copies"])
+    ):
+        raise ValueError("manifest variant_count differs from its copies")
     results = []
     seen = set()
     expected = {"manifest.json", "plan.json"}
@@ -164,10 +211,6 @@ def verify_export(destination: Path, *, strict: bool = False) -> dict[str, Any]:
         results.append({"destination": name, "status": status})
     unexpected = []
     if strict:
-
-        def walk_error(error: OSError) -> None:
-            raise error
-
         for directory, folders, files in os.walk(
             destination, followlinks=False, onerror=walk_error
         ):
@@ -190,6 +233,7 @@ def verify_export(destination: Path, *, strict: bool = False) -> dict[str, Any]:
 def selected_plan(original: dict[str, Any], chosen: Any) -> dict[str, Any]:
     if (
         not isinstance(chosen, dict)
+        or type(chosen.get("version")) is not int
         or chosen.get("version") != 1
         or chosen.get("source") != original["source"]
         or not isinstance(chosen.get("items"), list)
@@ -200,7 +244,14 @@ def selected_plan(original: dict[str, Any], chosen: Any) -> dict[str, Any]:
         {item["target"] for item in chosen["items"]}
     ) != len(chosen["items"]):
         raise ValueError("reviewed plan contains changed or duplicate items")
-    return {**original, "items": chosen["items"], "variant_count": len(chosen["items"])}
+    from .core import duplicate_content
+
+    return {
+        **original,
+        "items": chosen["items"],
+        "variant_count": len(chosen["items"]),
+        "duplicate_content": duplicate_content(chosen["items"]),
+    }
 
 
 def render_html(plan: dict[str, Any]) -> str:
@@ -249,5 +300,9 @@ def render_html(plan: dict[str, Any]) -> str:
         + body
         + '<button id="download">Download selected plan</button><output id="status" role="status"></output><script type="application/json" id="plan">'
         + payload
-        + '</script><script>const p=JSON.parse(document.getElementById("plan").textContent);document.getElementById("download").onclick=()=>{const items=[...document.querySelectorAll("input:checked")].map(x=>p.items[Number(x.dataset.index)]);if(!items.length){document.getElementById("status").textContent="Select at least one cover";return;}const url=URL.createObjectURL(new Blob([JSON.stringify({...p,items,variant_count:items.length},null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="reviewed-variants.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.getElementById("status").textContent=items.length+" covers selected. Use --reviewed-plan for export.";};</script></html>'
+        + '</script><script>const p=JSON.parse(document.getElementById("plan").textContent);document.getElementById("download").onclick=()=>{const items=[...document.querySelectorAll("input:checked")].map(x=>p.items[Number(x.dataset.index)]);if(!items.length){document.getElementById("status").textContent="Select at least one cover";return;}const duplicate_content=p.duplicate_content.map(g=>({...g,files:g.files.filter(f=>items.some(i=>i.target===f.target))})).filter(g=>g.files.length>1);const url=URL.createObjectURL(new Blob([JSON.stringify({...p,items,variant_count:items.length,duplicate_content},null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="reviewed-variants.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.getElementById("status").textContent=items.length+" covers selected. Use --reviewed-plan for export.";};</script></html>'
     )
+
+
+def walk_error(error: OSError) -> None:
+    raise error

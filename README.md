@@ -4,6 +4,10 @@
 
 Variant Cover Organizer converts an explicit CSV inventory into a safe grouping plan for comic cover variants. It validates source files, issue and variant labels, duplicate assignments, and destination collisions before optionally copying files into issue folders.
 
+## Forge Gold scope
+
+This tool covers the complete explicit-inventory workflow: validate assignments, review local thumbnails, download a selected plan, copy without changing originals, resume interrupted exports, and verify the resulting manifest. It does not identify artwork or fetch publisher metadata. Gold reflects this bounded scope and the tested release; it is not a promise of defect-free software.
+
 ## Three-minute start
 
 ```bash
@@ -11,6 +15,8 @@ python -m pip install .
 variant-cover-organizer examples/variants.csv --source examples/covers
 variant-cover-organizer variants.csv --source covers --copy-to organized-covers --output plan.json
 ```
+
+The example paths are included in the source distribution and repository. Run them from the extracted source folder; installing the wheel provides the command, not a separate copy of that example folder.
 
 Planning is the default. Reports flag byte-identical covers by grouping the SHA-256 fingerprints already calculated for safety. `--copy-to` creates a new destination through a staged directory, preserves every source file, and writes `manifest.json` mapping each source to its destination and fingerprint. Paths in the CSV must be relative and remain inside the selected source folder.
 
@@ -37,3 +43,17 @@ Use `variant-cover-organizer --verify-export organized-covers --strict` for read
 New inventories and direct export plans reserve .copying, manifest.json and plan.json as top-level bookkeeping names (case-insensitive), before staging starts. Existing version 1 manifests may list copies under .copying/ from older exports: verification accepts those exact listed files with the same hash, duplicate-path, traversal and symlink checks as other copies. Strict mode still reports every unlisted file there.
 
 New inventory targets and direct-plan targets use the same portable validation as manifest inspection: backslashes, redundant separators, traversal and trailing-dot/space aliases are rejected before staging.
+
+## Version 1.2.2
+
+Malformed CSV rows and duplicate column names now stop with an actionable error instead of dropping values or raising a traceback. Selected plans recalculate duplicate-content groups from the covers actually selected. Verification rejects boolean schema versions and inconsistent declared copy counts while retaining legacy manifests without a count.
+
+Resume requires ordinary staging metadata files, rejects symlinks and unexpected staged files, and preserves those files for inspection. It still resumes matching incomplete copies and verifies every source and completed copy. Export targets reject Windows device names and invalid filename characters before creating staging. Report files use exclusive creation, so a concurrently created file is never overwritten.
+
+Use a stable local folder while planning or copying; concurrent edits to source or staging are not a supported transaction mechanism. A manifest proves byte agreement with its supplied hashes, not the provenance of the artwork. Hard-link support is required for publishing copied files. SVG and other unsupported image formats can be copied but show an explicit unavailable-preview message.
+
+Resume also handles an interruption immediately after the exclusive hard link is published: a matching owned partial is verified and retired, while a mismatched partial is preserved and reported as an error. Planning hashes source covers in bounded chunks rather than loading whole files into memory.
+
+Resuming an incomplete copy also preserves the original when the staging file is a hard link to it.
+
+Staging metadata and copied files must be ordinary regular files. FIFOs and other special entries are rejected before reading or hashing, so malformed staging cannot block on a pipe.

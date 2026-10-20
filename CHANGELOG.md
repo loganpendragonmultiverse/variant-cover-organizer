@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.2 - 2026-10-20
+
+- Recover the post-link interruption window without publishing leftover partial files; preserve mismatches.
+- Restart incomplete copies with a fresh inode so staging hard links cannot truncate source files.
+- Stream source hashing rather than reading complete covers into memory.
+- Reject special staging/manifest files before reading or hashing to avoid blocking on pipes.
+- Reject malformed or ambiguous CSV rows and recompute duplicate groups for selected covers.
+- Refuse symlinked staging metadata and unexpected staged files without deleting them.
+- Validate manifest versions and declared counts while retaining safe legacy manifests.
+- Reject nonportable device targets and create report files exclusively.
+- Include development/testing instructions in the source distribution and document the bounded Gold scope.
+
 ## 1.2.1 - 2026-10-16
 
 - Apply shared portable target validation before staging, including Windows backslash and trailing-dot/space aliases.
