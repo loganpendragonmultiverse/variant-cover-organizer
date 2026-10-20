@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import re
 from pathlib import Path
 from typing import Any
@@ -22,10 +21,14 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
         raise ValueError("source must be a directory")
     source = source.resolve()
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
+        reader = csv.DictReader(handle, strict=True)
         if reader.fieldnames is None or any(field not in reader.fieldnames for field in FIELDS):
             raise ValueError(f"CSV must contain: {', '.join(FIELDS)}")
+        if len(reader.fieldnames) != len(set(reader.fieldnames)):
+            raise ValueError("CSV headers must be unique")
         rows = list(reader)
+        if any(None in row or any(value is None for value in row.values()) for row in rows):
+            raise ValueError("CSV rows must have exactly one value per header")
     if not rows:
         raise ValueError("CSV must contain at least one variant")
     assignments: set[tuple[str, str]] = set()
@@ -40,7 +43,7 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
         relative = Path(row["file"])
         if relative.is_absolute() or ".." in relative.parts:
             raise ValueError(f"file must be a safe relative path: {row['file']}")
-        from .review import safe_path
+        from .review import digest, safe_path
 
         source_file = safe_path(source, row["file"]).resolve()
         if (
@@ -69,27 +72,17 @@ def build_plan(csv_path: Path, source: Path) -> dict[str, Any]:
                 "source": source_file.relative_to(source).as_posix(),
                 "target": target,
                 "size": source_file.stat().st_size,
-                "sha256": hashlib.sha256(source_file.read_bytes()).hexdigest(),
+                "sha256": digest(source_file),
             }
         )
     targets = [str(item["target"]).casefold() for item in items]
     if len(targets) != len(set(targets)):
         raise ValueError("two variants resolve to the same destination")
-    fingerprints: dict[str, list[dict[str, str]]] = {}
-    for item in items:
-        fingerprints.setdefault(str(item["sha256"]), []).append(
-            {"source": str(item["source"]), "target": str(item["target"])}
-        )
-    duplicate_content = [
-        {"sha256": fingerprint, "files": files}
-        for fingerprint, files in fingerprints.items()
-        if len(files) > 1
-    ]
     return {
         "version": 1,
         "source": str(source),
         "variant_count": len(items),
-        "duplicate_content": duplicate_content,
+        "duplicate_content": duplicate_content(items),
         "items": items,
     }
 
@@ -98,3 +91,16 @@ def export_copies(plan: dict[str, Any], destination: Path, *, resume: bool = Fal
     from .review import export_resumable
 
     export_resumable(plan, destination, resume=resume)
+
+
+def duplicate_content(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    fingerprints: dict[str, list[dict[str, str]]] = {}
+    for item in items:
+        fingerprints.setdefault(str(item["sha256"]), []).append(
+            {"source": str(item["source"]), "target": str(item["target"])}
+        )
+    return [
+        {"sha256": fingerprint, "files": files}
+        for fingerprint, files in fingerprints.items()
+        if len(files) > 1
+    ]
