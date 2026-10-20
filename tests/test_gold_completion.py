@@ -255,3 +255,16 @@ def test_verification_rejects_manifest_fifo_without_blocking(tmp_path):
         timeout=5,
     )
     assert result.returncode == 2 and "regular file" in result.stderr
+
+
+def test_output_dangling_symlink_does_not_create_its_target(tmp_path):
+    source, inventory, _ = fixture(tmp_path)
+    output = tmp_path / "report.json"
+    target = tmp_path / "unintended.json"
+    try:
+        output.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    assert main([str(inventory), "--source", str(source), "--output", str(output)]) == 2
+    assert output.is_symlink()
+    assert not target.exists()

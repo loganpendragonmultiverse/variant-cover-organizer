@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.strict and not args.verify_export:
             raise ValueError("--strict requires --verify-export")
-        if args.output and args.output.exists():
+        if args.output and (args.output.exists() or args.output.is_symlink()):
             raise ValueError("output already exists")
         if args.verify_export:
             if args.copy_to or args.resume or args.reviewed_plan or args.format != "json":
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.copy_to:
                 export_copies(plan, args.copy_to, resume=args.resume)
         if args.output:
-            if args.output.exists():
+            if args.output.exists() or args.output.is_symlink():
                 raise ValueError(f"output already exists: {args.output}")
             with args.output.open("x", encoding="utf-8") as handle:
                 handle.write(rendered)

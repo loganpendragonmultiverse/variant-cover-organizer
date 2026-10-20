@@ -6,6 +6,7 @@
 - Restart incomplete copies with a fresh inode so staging hard links cannot truncate source files.
 - Stream source hashing rather than reading complete covers into memory.
 - Reject special staging/manifest files before reading or hashing to avoid blocking on pipes.
+- Refuse pre-existing dangling output symlinks explicitly across supported platforms.
 - Reject malformed or ambiguous CSV rows and recompute duplicate groups for selected covers.
 - Refuse symlinked staging metadata and unexpected staged files without deleting them.
 - Validate manifest versions and declared counts while retaining safe legacy manifests.
