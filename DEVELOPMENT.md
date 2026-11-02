@@ -31,3 +31,7 @@ Resume also handles an interruption immediately after the exclusive hard link is
 Restarting an incomplete plan-owned copy creates a fresh inode exclusively; it never truncates an existing inode that could also be a hard link to a source file. The hard-link regression uses only synthetic files.
 
 Staging metadata and copied files must be ordinary regular files. FIFOs and other special entries are rejected before reading or hashing, so malformed staging cannot block on a pipe.
+
+## Supported runtime
+
+Python 3.11 is the minimum supported runtime. Pillow 13.x supplies thumbnail generation and the dependency security fixes; retain the existing OS matrix, coverage threshold, strict typing, dependency audit and packaging gates.

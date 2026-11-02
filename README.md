@@ -20,7 +20,7 @@ The example paths are included in the source distribution and repository. Run th
 
 Planning is the default. Reports flag byte-identical covers by grouping the SHA-256 fingerprints already calculated for safety. `--copy-to` creates a new destination through a staged directory, preserves every source file, and writes `manifest.json` mapping each source to its destination and fingerprint. Paths in the CSV must be relative and remain inside the selected source folder.
 
-The tool does not identify cover art, scrape publisher metadata, or decide whether visually similar images are official variants. The user supplies the issue and variant identities. Requires Python 3.10 or newer.
+The tool does not identify cover art, scrape publisher metadata, or decide whether visually similar images are official variants. The user supplies the issue and variant identities. Requires Python 3.11 or newer. Thumbnail generation uses Pillow 13 or newer within the supported 13.x series.
 
 Part of the [Logan Pendragon Forge open-source collection](https://www.loganpendragonforge.com/open-source/). Licensed under the [MIT License](LICENSE).
 

@@ -25,3 +25,7 @@ Resume also handles an interruption immediately after the exclusive hard link is
 Restarting an incomplete plan-owned copy creates a fresh inode exclusively; it never truncates an existing inode that could also be a hard link to a source file. The hard-link regression uses only synthetic files.
 
 Staging metadata and copied files must be ordinary regular files. FIFOs and other special entries are rejected before reading or hashing, so malformed staging cannot block on a pipe.
+
+## Python 3.11 and Pillow 13 support
+
+Run the full quality, coverage and package checks on Python 3.11 (the minimum) and 3.14 with Pillow 13.x. CI retains Windows, macOS and Linux coverage. Verify thumbnail generation with synthetic images, install both built distributions in clean environments, run the complete suite away from the checkout, and preserve the existing source-hash/no-overwrite acceptance boundaries.

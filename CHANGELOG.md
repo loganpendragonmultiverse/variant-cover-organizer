@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Require Python 3.11 or newer and Pillow 13.x to include the dependency security fixes.
+- Keep the supported Windows, macOS and Linux matrix, coverage threshold and dependency-audit gates.
+
 ## 1.2.2 - 2026-10-20
 
 - Recover the post-link interruption window without publishing leftover partial files; preserve mismatches.
